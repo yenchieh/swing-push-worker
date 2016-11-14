@@ -1,5 +1,5 @@
-hash: 64031ec5dda3028a7cbf09fb092d1790241ca40de2beea96e03d32861f62b85c
-updated: 2016-11-10T21:48:39.633958189-05:00
+hash: e5eddd81e6296df805f43f788b0b4c2306c93fef778b6328ae9dbd8c7a158928
+updated: 2016-11-13T21:25:28.955555544-05:00
 imports:
 - name: github.com/aai/gocrypto
   version: 93df0c47f8b8301aa058dcfb98c82c8be3ba665e
@@ -18,6 +18,8 @@ imports:
   - payload/badge
 - name: github.com/urfave/cli
   version: d86a009f5e13f83df65d0d6cee9a2e3f1445f0da
+- name: github.com/yenchieh/swing-push-worker
+  version: 7cd6dd6e9456eed97983b3e7de1f385e82b176ca
 - name: golang.org/x/crypto
   version: 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
   subpackages:
