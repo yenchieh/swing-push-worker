@@ -21,6 +21,7 @@ import (
 
 type CalendarEvent struct {
 	EventName   string
+	Alert       int
 	Description string
 	StartDate   time.Time
 	EndDate     time.Time
@@ -112,9 +113,9 @@ func startPushNotification(database Database, certPassword string) {
 
 	defer db.Close()
 
-	result, err := db.Query("SELECT event_name, COALESCE(description, '') as description, start_date, end_date, user_id, " +
+	result, err := db.Query("SELECT event_name, alert, COALESCE(description, '') as description, start_date, end_date, user_id, " +
 		"status, email, last_name, first_name, registration_id FROM calendar_event c JOIN user u ON c.user_id = u.id " +
-		"WHERE alert > 0 AND start_date > now() AND start_date < now() + INTERVAL 1 MINUTE")
+		"WHERE alert >= 36 AND start_date > now() AND start_date < now() + INTERVAL 1 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
@@ -124,7 +125,7 @@ func startPushNotification(database Database, certPassword string) {
 		var calendarEvent CalendarEvent
 		var calendarUser User
 
-		result.Scan(&calendarEvent.EventName, &calendarEvent.Description, &calendarEvent.StartDate,
+		result.Scan(&calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.StartDate,
 			&calendarEvent.EndDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
 			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID)
 
@@ -136,7 +137,6 @@ func startPushNotification(database Database, certPassword string) {
 	}
 	log.Println("End the notification task")
 
-	//sendBugMail("Test bug")
 }
 
 func pushNotification(calendarEvent CalendarEvent, user User, certPassword string) {
@@ -154,7 +154,7 @@ func pushNotification(calendarEvent CalendarEvent, user User, certPassword strin
 
 	service := push.NewService(client, push.Production)
 
-	message := fmt.Sprintf("You have a event now")
+	message := fmt.Sprintf("You have an event: %s", calendarEvent.EventName)
 
 	p := payload.APS{
 		Alert: payload.Alert{Body: message},
