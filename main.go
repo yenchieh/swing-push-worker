@@ -20,6 +20,7 @@ import (
 )
 
 type CalendarEvent struct {
+	ID int64
 	EventName   string
 	Alert       int
 	Description string
@@ -89,8 +90,6 @@ func main() {
 			IP:       c.String("database_IP"),
 		}
 
-		fmt.Println(database)
-
 		gocron.Every(1).Minute().Do(startPushNotification, database, c.String("cert_password"))
 		<-gocron.Start()
 		//startPushNotification()
@@ -103,7 +102,7 @@ func main() {
 }
 
 func startPushNotification(database Database, certPassword string) {
-	log.Println("Start the notification task")
+	log.Println("Check the notification task")
 	connectString := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=true", database.User, database.Password, database.IP, database.Name)
 	db, err := sql.Open("mysql", connectString)
 
@@ -113,9 +112,9 @@ func startPushNotification(database Database, certPassword string) {
 
 	defer db.Close()
 
-	result, err := db.Query("SELECT event_name, alert, COALESCE(description, '') as description, start_date, end_date, user_id, " +
-		"status, email, last_name, first_name, registration_id FROM calendar_event c JOIN user u ON c.user_id = u.id " +
-		"WHERE alert >= 36 AND start_date > now() AND start_date < now() + INTERVAL 1 MINUTE")
+	result, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, start, end, user_id, " +
+		"status, email, last_name, first_name, registration_id FROM event c JOIN user u ON c.user_id = u.id " +
+		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
@@ -125,13 +124,18 @@ func startPushNotification(database Database, certPassword string) {
 		var calendarEvent CalendarEvent
 		var calendarUser User
 
-		result.Scan(&calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.StartDate,
+		result.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.StartDate,
 			&calendarEvent.EndDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
 			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID)
 
 		log.Println("------------------------------------")
 		log.Printf("Event Name: %s, User Email: %s\n", calendarEvent.EventName, calendarUser.Email)
 		log.Printf("%v \n", calendarEvent.StartDate)
+
+		_, err := db.Exec("Update event set status = 'NOTIFICATION_SENT' where id = ?", calendarEvent.ID)
+		if err != nil {
+			log.Printf("Error on updating event. ID: %d", calendarEvent.ID)
+		}
 
 		pushNotification(calendarEvent, calendarUser, certPassword)
 	}
