@@ -132,10 +132,10 @@ func startPushNotification(database Database, certPassword string) {
 		log.Printf("Event Name: %s, User Email: %s\n", calendarEvent.EventName, calendarUser.Email)
 		log.Printf("%v \n", calendarEvent.StartDate)
 
-		_, err := db.Exec("Update event set status = 'NOTIFICATION_SENT' where id = ?", calendarEvent.ID)
+/*		_, err := db.Exec("Update event set status = 'NOTIFICATION_SENT' where id = ?", calendarEvent.ID)
 		if err != nil {
 			log.Printf("Error on updating event. ID: %d", calendarEvent.ID)
-		}
+		}*/
 
 		pushNotification(calendarEvent, calendarUser, certPassword)
 		log.Println("------------------------------------")
