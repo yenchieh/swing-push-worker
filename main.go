@@ -20,7 +20,7 @@ import (
 )
 
 type CalendarEvent struct {
-	ID int64
+	ID          int64
 	EventName   string
 	Alert       int
 	Description string
@@ -35,6 +35,7 @@ type User struct {
 	FirstName      string
 	LastName       string
 	RegistrationID string
+	Lang           string
 }
 
 type Database struct {
@@ -112,9 +113,9 @@ func startPushNotification(database Database, certPassword string) {
 
 	defer db.Close()
 
-	result, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, start, end, user_id, " +
-		"status, email, last_name, first_name, registration_id FROM event c JOIN user u ON c.user_id = u.id " +
-		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.5 MINUTE")
+	result, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, start, end, user_id, " +
+		"status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i ON i.alert_id = c.alert AND i.lang = u.language " +
+		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
@@ -126,16 +127,11 @@ func startPushNotification(database Database, certPassword string) {
 
 		result.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.StartDate,
 			&calendarEvent.EndDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
-			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID)
+			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.Lang)
 
 		log.Println("------------------------------------")
 		log.Printf("Event Name: %s, User Email: %s\n", calendarEvent.EventName, calendarUser.Email)
 		log.Printf("%v \n", calendarEvent.StartDate)
-
-/*		_, err := db.Exec("Update event set status = 'NOTIFICATION_SENT' where id = ?", calendarEvent.ID)
-		if err != nil {
-			log.Printf("Error on updating event. ID: %d", calendarEvent.ID)
-		}*/
 
 		pushNotification(calendarEvent, calendarUser, certPassword)
 		log.Println("------------------------------------")
