@@ -115,7 +115,7 @@ func startPushNotification(database Database, certPassword string) {
 
 	result, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, start, end, user_id, " +
 		"status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i ON i.alert_id = c.alert AND i.lang = u.language " +
-		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1 MINUTE")
+		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.5 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
