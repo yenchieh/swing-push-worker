@@ -19,13 +19,19 @@ import (
 	"github.com/urfave/cli"
 )
 
+type NotificationData struct {
+	Event CalendarEvent
+	User  User
+}
+
 type CalendarEvent struct {
 	ID          int64
 	EventName   string
 	Alert       int
 	Description string
-	StartDate   time.Time
-	EndDate     time.Time
+	PushDate    time.Time
+	Weekday     string
+	Repeat      string
 	UserId      int64
 	Status      string
 }
@@ -102,25 +108,7 @@ func main() {
 
 }
 
-func testPushNotification(certPassword string) {
-	testEvent := CalendarEvent{
-		Alert:       35,
-		Description: "You have test Event",
-		StartDate:   time.Now(),
-		EndDate:     time.Now(),
-		UserId:      30,
-		Status:      "Pending",
-	}
-
-	user := User{
-		RegistrationID: "",
-	}
-
-	pushNotification(testEvent, user, certPassword)
-}
-
-func startPushNotification(database Database, certPassword string) {
-	//log.Println("Check the notification task")
+func connectToDatabase(database Database) *sql.DB {
 	connectString := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=true", database.User, database.Password, database.IP, database.Name)
 	db, err := sql.Open("mysql", connectString)
 
@@ -128,38 +116,73 @@ func startPushNotification(database Database, certPassword string) {
 		log.Fatal(err)
 	}
 
+	return db
+}
+
+func startPushNotification(database Database, certPassword string) {
+	//log.Println("Check the notification task")
+
+	db := connectToDatabase(database)
 	defer db.Close()
 
-	result, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, start, end, user_id, " +
+	notificationEvent, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, push_time_utc, user_id, " +
 		"status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i ON i.alert_id = c.alert AND i.lang = u.language " +
-		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.5 MINUTE")
+		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.1 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for result.Next() {
+	var notificationDatas []NotificationData
+
+	for notificationEvent.Next() {
 		var calendarEvent CalendarEvent
 		var calendarUser User
 
-		result.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.StartDate,
-			&calendarEvent.EndDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
+		notificationEvent.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description,
+			&calendarEvent.PushDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
 			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.Lang)
 
-		log.Println("------------------------------------")
-		log.Printf("Event Name: %s, User Email: %s\n", calendarEvent.EventName, calendarUser.Email)
-		log.Printf("%v \n", calendarEvent.StartDate)
+		var notificationData NotificationData
+		notificationData.Event = calendarEvent
+		notificationData.User = calendarUser
 
-		pushNotification(calendarEvent, calendarUser, certPassword)
-		log.Println("------------------------------------")
+		notificationDatas = append(notificationDatas, notificationData)
+
 	}
-	//log.Println("End the notification task")
+
+	repeatEvent, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, DAYNAME(push_time_utc) as weekday, push_time_utc," +
+		" `repeat`, user_id, status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i" +
+		" ON i.alert_id = c.alert AND i.lang = u.language WHERE alert >= 36 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND registration_id is not null AND " +
+		"hour(push_time_utc) = hour(now()) AND minute(push_time_utc) = minute(now())")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for repeatEvent.Next() {
+		var calendarEvent CalendarEvent
+		var calendarUser User
+
+		repeatEvent.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.Weekday,
+			&calendarEvent.PushDate, &calendarEvent.Repeat, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
+			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.Lang)
+
+		var notificationData NotificationData
+		notificationData.Event = calendarEvent
+		notificationData.User = calendarUser
+
+		notificationDatas = append(notificationDatas, notificationData)
+
+	}
+
+	if len(notificationDatas) > 0 {
+		pushNotification(notificationDatas, certPassword)
+	}
 
 }
 
-func pushNotification(calendarEvent CalendarEvent, user User, certPassword string) {
-	token := user.RegistrationID
-
+func pushNotification(notificationDatas []NotificationData, certPassword string) {
 	cert, err := certificate.Load("./cert/com_kd_swing.p12", certPassword)
 	panicError(err)
 
@@ -170,21 +193,46 @@ func pushNotification(calendarEvent CalendarEvent, user User, certPassword strin
 	header := &push.Headers{}
 	header.Topic = certificate.TopicFromCert(cert)
 
-	service := push.NewService(client, push.Production2197)
+	service := push.NewService(client, push.Production)
 
-	message := fmt.Sprintf("You have an event: %s", calendarEvent.EventName)
+	for _, notificationData := range notificationDatas {
+		log.Println("------------------------------------")
+		log.Printf("Process: %#v \n", notificationData)
 
-	p := payload.APS{
-		Alert: payload.Alert{Body: message},
+		if notificationData.Event.Repeat != "" {
+			if !SendRepeatNotification(notificationData.Event) {
+				log.Println("Weekly event, but it's not today")
+				log.Println("------------------------------------")
+				continue
+			}
+		}
+
+		message := fmt.Sprintf("You have an event: %s", notificationData.Event.EventName)
+
+		p := payload.APS{
+			Alert: payload.Alert{Body: message},
+		}
+
+		b, err := json.Marshal(p)
+		panicError(err)
+
+		id, err := service.Push(notificationData.User.RegistrationID, header, b)
+		panicError(err)
+
+		log.Printf("Pushed to %s\n", id)
+		log.Println("------------------------------------")
 	}
 
-	b, err := json.Marshal(p)
-	panicError(err)
+}
 
-	id, err := service.Push(token, header, b)
-	panicError(err)
+func SendRepeatNotification(event CalendarEvent) bool {
+	if event.Repeat == "WEEKLY" && time.Now().UTC().Weekday().String() == event.Weekday {
+		return true
+	} else if event.Repeat == "DAILY" {
+		return true
+	}
 
-	log.Printf("Pushed to %s\n", id)
+	return false
 }
 
 type EmailUser struct {
@@ -229,9 +277,3 @@ func panicError(err error) {
 		return
 	}
 }
-
-/**
-
-
-
- */
