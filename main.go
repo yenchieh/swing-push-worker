@@ -102,8 +102,25 @@ func main() {
 
 }
 
+func testPushNotification(certPassword string) {
+	testEvent := CalendarEvent{
+		Alert:       35,
+		Description: "You have test Event",
+		StartDate:   time.Now(),
+		EndDate:     time.Now(),
+		UserId:      30,
+		Status:      "Pending",
+	}
+
+	user := User{
+		RegistrationID: "",
+	}
+
+	pushNotification(testEvent, user, certPassword)
+}
+
 func startPushNotification(database Database, certPassword string) {
-	log.Println("Check the notification task")
+	//log.Println("Check the notification task")
 	connectString := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=true", database.User, database.Password, database.IP, database.Name)
 	db, err := sql.Open("mysql", connectString)
 
@@ -136,14 +153,14 @@ func startPushNotification(database Database, certPassword string) {
 		pushNotification(calendarEvent, calendarUser, certPassword)
 		log.Println("------------------------------------")
 	}
-	log.Println("End the notification task")
+	//log.Println("End the notification task")
 
 }
 
 func pushNotification(calendarEvent CalendarEvent, user User, certPassword string) {
 	token := user.RegistrationID
 
-	cert, err := certificate.Load("./cert/swing-push-product.p12", certPassword)
+	cert, err := certificate.Load("./cert/com_kd_swing.p12", certPassword)
 	panicError(err)
 
 	client, err := push.NewClient(cert)
@@ -153,7 +170,7 @@ func pushNotification(calendarEvent CalendarEvent, user User, certPassword strin
 	header := &push.Headers{}
 	header.Topic = certificate.TopicFromCert(cert)
 
-	service := push.NewService(client, push.Production)
+	service := push.NewService(client, push.Production2197)
 
 	message := fmt.Sprintf("You have an event: %s", calendarEvent.EventName)
 
@@ -208,7 +225,7 @@ func sendMail(emailUser *EmailUser, toEmail, message string) {
 func panicError(err error) {
 	if err != nil {
 		//sendBugMail(err.Error())
-		log.Println(err)
+		fmt.Println(err)
 		return
 	}
 }
