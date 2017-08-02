@@ -125,9 +125,9 @@ func startPushNotification(database Database, certPassword string) {
 	db := connectToDatabase(database)
 	defer db.Close()
 
-	notificationEvent, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, push_time_utc, user_id, " +
-		"status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i ON i.alert_id = c.alert AND i.lang = u.language " +
-		"WHERE alert >= 36 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.1 MINUTE")
+	notificationEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, push_time_utc, user_id, " +
+		"status, email, last_name, first_name, registration_id FROM event c JOIN user u ON c.user_id = u.id " +
+		"WHERE alert >= 32 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.1 MINUTE")
 
 	if err != nil {
 		log.Fatal(err)
@@ -151,9 +151,9 @@ func startPushNotification(database Database, certPassword string) {
 
 	}
 
-	repeatEvent, err := db.Query("SELECT c.id, i.text, alert, COALESCE(description, '') as description, DAYNAME(push_time_utc) as weekday, push_time_utc," +
-		" `repeat`, user_id, status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id JOIN i18n_alert i" +
-		" ON i.alert_id = c.alert AND i.lang = u.language WHERE alert >= 36 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND registration_id is not null AND " +
+	repeatEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, DAYNAME(push_time_utc) as weekday, push_time_utc," +
+		" `repeat`, user_id, status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id " +
+		"WHERE alert >= 32 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND registration_id is not null AND " +
 		"hour(push_time_utc) = hour(now()) AND minute(push_time_utc) = minute(now())")
 
 	if err != nil {
