@@ -141,7 +141,7 @@ func startPushNotification(database Database, certPassword string) {
 
 		notificationEvent.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description,
 			&calendarEvent.PushDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
-			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.Lang)
+			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID)
 
 		var notificationData NotificationData
 		notificationData.Event = calendarEvent
@@ -152,7 +152,7 @@ func startPushNotification(database Database, certPassword string) {
 	}
 
 	repeatEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, DAYNAME(push_time_utc) as weekday, push_time_utc," +
-		" `repeat`, user_id, status, email, last_name, first_name, registration_id, language FROM event c JOIN user u ON c.user_id = u.id " +
+		" `repeat`, user_id, status, email, last_name, first_name, registration_id FROM event c JOIN user u ON c.user_id = u.id " +
 		"WHERE alert >= 32 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND registration_id is not null AND " +
 		"hour(push_time_utc) = hour(now()) AND minute(push_time_utc) = minute(now())")
 
@@ -166,7 +166,7 @@ func startPushNotification(database Database, certPassword string) {
 
 		repeatEvent.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description, &calendarEvent.Weekday,
 			&calendarEvent.PushDate, &calendarEvent.Repeat, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
-			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.Lang)
+			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID)
 
 		var notificationData NotificationData
 		notificationData.Event = calendarEvent
