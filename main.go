@@ -97,7 +97,7 @@ func main() {
 			IP:       c.String("database_IP"),
 		}
 
-		gocron.Every(1).Minute().Do(startPushNotification, database, c.String("cert_password"))
+		gocron.Every(30).Seconds().Do(startPushNotification, database, c.String("cert_password"))
 		<-gocron.Start()
 		//startPushNotification()
 
@@ -127,7 +127,7 @@ func startPushNotification(database Database, certPassword string) {
 
 	notificationEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, push_time_utc, user_id, " +
 		"status, email, last_name, first_name, registration_id FROM event c JOIN user u ON c.user_id = u.id " +
-		"WHERE alert >= 32 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 1.1 MINUTE")
+		"WHERE alert >= 32 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND registration_id is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 30 SECOND")
 
 	if err != nil {
 		log.Fatal(err)
