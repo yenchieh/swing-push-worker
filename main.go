@@ -108,6 +108,7 @@ func main() {
 
 		gocron.Every(30).Seconds().Do(startPushNotification, database, c.String("cert_password"), c.String("fcm_server_key"))
 		<-gocron.Start()
+		pushNotificationTest("", "POST OFFICE", c.String("fcm_server_key"))
 
 		return nil
 	}
@@ -218,10 +219,13 @@ func pushNotificationiOS(notificationDatas []NotificationData, certPassword stri
 				}
 			}
 
-			message := fmt.Sprintf("You have an event: %s", notificationData.Event.EventName)
+			message := fmt.Sprintf(" %s", notificationData.Event.EventName)
 
 			p := payload.APS{
-				Alert: payload.Alert{Body: message},
+				Alert: payload.Alert{
+					LocKey:  "SWING_EVENT",
+					LocArgs: []string{message},
+				},
 			}
 
 			b, err := json.Marshal(p)
@@ -245,7 +249,6 @@ func pushNotificationAndroid(notificationDatas []NotificationData, serverKey str
 				"message": notificationData.Event.EventName,
 			}
 			c := fcm.NewFcmClient(serverKey)
-			fmt.Println(notificationData.User.AndroidToken)
 			c.NewFcmMsgTo(notificationData.User.AndroidToken, data)
 			status, err := c.Send()
 			if err == nil {
@@ -255,6 +258,20 @@ func pushNotificationAndroid(notificationDatas []NotificationData, serverKey str
 			}
 		}
 
+	}
+}
+
+func pushNotificationTest(token string, text string, serverKey string) {
+	data := map[string]string{
+		"message": text,
+	}
+	c := fcm.NewFcmClient(serverKey)
+	c.NewFcmMsgTo(token, data)
+	status, err := c.Send()
+	if err == nil {
+		status.PrintResults()
+	} else {
+		fmt.Println(err)
 	}
 }
 
