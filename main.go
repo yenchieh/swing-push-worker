@@ -139,7 +139,7 @@ func startPushNotification(database Database, certPassword string, serverKey str
 		"(registration_id is not null OR android_registration_token is not null) AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 30 SECOND")
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	var notificationDatas []NotificationData
@@ -166,7 +166,7 @@ func startPushNotification(database Database, certPassword string, serverKey str
 		"hour(push_time_utc) = hour(now()) AND minute(push_time_utc) = minute(now())")
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	for repeatEvent.Next() {
