@@ -106,8 +106,10 @@ func main() {
 		}
 		fmt.Println("Push Server Started")
 
-		gocron.Every(30).Seconds().Do(startPushNotification, database, c.String("cert_password"), c.String("fcm_server_key"))
+		gocron.Every(30).Seconds().Do(startPushNotificationSingle, database, c.String("cert_password"), c.String("fcm_server_key"))
+		gocron.Every(1).Minute().Do(startPushNotificationRepeat, database, c.String("cert_password"), c.String("fcm_server_key"))
 		<-gocron.Start()
+
 		pushNotificationTest("", "POST OFFICE", c.String("fcm_server_key"))
 
 		return nil
@@ -128,26 +130,23 @@ func connectToDatabase(database Database) *sql.DB {
 	return db
 }
 
-func startPushNotification(database Database, certPassword string, serverKey string) {
-	//log.Println("Check the notification task")
+func startPushNotificationSingle(database Database, certPassword string, serverKey string) {
 	db := connectToDatabase(database)
 	defer db.Close()
 
 	notificationEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, push_time_utc, user_id, " +
-		"status, email, last_name, first_name, registration_id, android_registration_token FROM event c JOIN user u ON c.user_id = u.id " +
+		"status, u.email, last_name, first_name, registration_id, android_registration_token FROM event c JOIN user u ON c.user_id = u.id LEFT JOIN authentication_token auth on u.email = auth.email " +
 		"WHERE alert >= 32 AND status != 'NOTIFICATION_SENT' AND (`repeat` = '' or `repeat` is null) AND registration_id != '' AND " +
-		"(registration_id is not null OR android_registration_token is not null) AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 30 SECOND")
+		"(registration_id is not null OR android_registration_token is not null) AND auth.token is not null AND push_time_utc >= now() AND push_time_utc <= now() + INTERVAL 30 SECOND")
 
 	if err != nil {
 		log.Println(err)
 	}
-
 	var notificationDatas []NotificationData
 
 	for notificationEvent.Next() {
 		var calendarEvent CalendarEvent
 		var calendarUser User
-
 		notificationEvent.Scan(&calendarEvent.ID, &calendarEvent.EventName, &calendarEvent.Alert, &calendarEvent.Description,
 			&calendarEvent.PushDate, &calendarEvent.UserId, &calendarEvent.Status, &calendarUser.Email,
 			&calendarUser.FirstName, &calendarUser.LastName, &calendarUser.RegistrationID, &calendarUser.AndroidToken)
@@ -155,20 +154,30 @@ func startPushNotification(database Database, certPassword string, serverKey str
 		var notificationData NotificationData
 		notificationData.Event = calendarEvent
 		notificationData.User = calendarUser
-
 		notificationDatas = append(notificationDatas, notificationData)
 
 	}
+	if len(notificationDatas) > 0 {
+		pushNotificationiOS(notificationDatas, certPassword)
+		pushNotificationAndroid(notificationDatas, serverKey)
+	}
+
+}
+
+func startPushNotificationRepeat(database Database, certPassword string, serverKey string) {
+	db := connectToDatabase(database)
+	defer db.Close()
 
 	repeatEvent, err := db.Query("SELECT c.id, name, alert, COALESCE(description, '') as description, DAYNAME(push_time_utc) as weekday, push_time_utc," +
-		" `repeat`, user_id, status, email, last_name, first_name, registration_id, android_registration_token FROM event c JOIN user u ON c.user_id = u.id " +
-		"WHERE alert >= 32 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND (registration_id is not null OR android_registration_token is not null) AND " +
+		" `repeat`, user_id, status, u.email, last_name, first_name, registration_id, android_registration_token FROM event c JOIN user u ON c.user_id = u.id LEFT JOIN authentication_token auth on u.email = auth.email " +
+		"WHERE alert >= 32 AND (`repeat` != '' AND `repeat` is not null) AND registration_id != '' AND (registration_id is not null OR android_registration_token is not null) AND auth.token is not null AND " +
 		"hour(push_time_utc) = hour(now()) AND minute(push_time_utc) = minute(now())")
 
 	if err != nil {
 		log.Println(err)
 	}
 
+	var notificationDatas []NotificationData
 	for repeatEvent.Next() {
 		var calendarEvent CalendarEvent
 		var calendarUser User
@@ -180,17 +189,13 @@ func startPushNotification(database Database, certPassword string, serverKey str
 		var notificationData NotificationData
 		notificationData.Event = calendarEvent
 		notificationData.User = calendarUser
-
 		notificationDatas = append(notificationDatas, notificationData)
-
 	}
 
 	if len(notificationDatas) > 0 {
-
 		pushNotificationiOS(notificationDatas, certPassword)
 		pushNotificationAndroid(notificationDatas, serverKey)
 	}
-
 }
 
 func pushNotificationiOS(notificationDatas []NotificationData, certPassword string) {

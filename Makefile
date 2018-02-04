@@ -16,7 +16,7 @@ clean:
 	rm -rf build/*
 	find . -name '*.test' -delete
 
-push-image:
+push-image: clean build build-image
 	docker tag swing-push-worker $(DOCKER_REPO_URL):latest
 	docker push $(DOCKER_REPO_URL):latest
 
